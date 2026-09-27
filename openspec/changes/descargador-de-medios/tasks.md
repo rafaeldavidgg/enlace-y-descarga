@@ -34,6 +34,6 @@
 ## 5. Despliegue y documentación
 
 - [x] 5.1 Añadir la configuración de despliegue (duración máxima de la función de descarga y empaquetado del binario en la función) y verificar con un build de producción en local (`npm run build` + `npm start`) que la descarga funciona
-- [ ] 5.2 Desplegar en Vercel (plan Hobby) y verificar desde otro dispositivo que un enlace de TikTok y, cuando el tweet tenga video, de X/Twitter se resuelve y descarga correctamente
+- [x] 5.2 Desplegar en Vercel (plan Hobby) y verificar desde otro dispositivo que un enlace de TikTok y, cuando el tweet tenga video, de X/Twitter se resuelve y descarga correctamente
 - [x] 5.3 Escribir el README con instrucciones de ejecución local, pasos de despliegue, límites de transferencia/duración/tamaño, aviso legal y plataformas soportadas frente a no soportadas (Instagram y YouTube fuera de alcance); verificar que otra persona puede seguir las instrucciones sin pasos no documentados
-- [ ] 5.4 Verificar la paridad local/Vercel con el mismo enlace de TikTok en ambos entornos y comparar el resultado funcional y los mensajes, documentando las diferencias de límites encontradas
+- [x] 5.4 Verificar la paridad local/Vercel con el mismo enlace de TikTok en ambos entornos y comparar el resultado funcional y los mensajes, documentando las diferencias de límites encontradas
