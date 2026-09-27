@@ -30,6 +30,70 @@ describe("selectCombinedFormats", () => {
   it("descarta formatos sin identificador", () => {
     expect(selectCombinedFormats([{ acodec: "aac", vcodec: "h264" }])).toHaveLength(0);
   });
+
+  it("colapsa el mismo archivo listado dos veces por yt-dlp", () => {
+    const formats = [
+      {
+        format_id: "h264_540p_377700-0",
+        acodec: "aac",
+        vcodec: "h264",
+        ext: "mp4",
+        height: 1024,
+        filesize: 1159730,
+      },
+      {
+        format_id: "h264_540p_377700-1",
+        acodec: "aac",
+        vcodec: "h264",
+        ext: "mp4",
+        height: 1024,
+        filesize: 1159730,
+      },
+    ];
+    const combined = selectCombinedFormats(formats);
+    expect(combined.map((f) => f.format_id)).toEqual(["h264_540p_377700-0"]);
+  });
+
+  it("conserva formatos distintos con la misma resolucion", () => {
+    const formats = [
+      { format_id: "h264-0", acodec: "aac", vcodec: "h264", ext: "mp4", height: 576, tbr: 500 },
+      { format_id: "h264-1", acodec: "aac", vcodec: "h264", ext: "mp4", height: 576, tbr: 900 },
+      { format_id: "h265-0", acodec: "aac", vcodec: "h265", ext: "mp4", height: 576, tbr: 500 },
+    ];
+    const combined = selectCombinedFormats(formats);
+    expect(combined.map((f) => f.format_id)).toEqual(["h264-0", "h264-1", "h265-0"]);
+  });
+
+  it("descarta los manifiestos HLS/DASH aunque tengan audio y video", () => {
+    const formats = [
+      {
+        format_id: "hls-720",
+        acodec: "aac",
+        vcodec: "h264",
+        ext: "mp4",
+        height: 720,
+        protocol: "m3u8_native",
+      },
+      {
+        format_id: "dash-720",
+        acodec: "aac",
+        vcodec: "h264",
+        ext: "mp4",
+        height: 720,
+        protocol: "http_dash_segments",
+      },
+      {
+        format_id: "http-720",
+        acodec: "aac",
+        vcodec: "h264",
+        ext: "mp4",
+        height: 720,
+        protocol: "https",
+      },
+    ];
+    const combined = selectCombinedFormats(formats);
+    expect(combined.map((f) => f.format_id)).toEqual(["http-720"]);
+  });
 });
 
 describe("formatLabel", () => {

@@ -16,6 +16,8 @@ interface YtDlpFormat {
   filesize?: number | null;
   filesize_approx?: number | null;
   format_note?: string | null;
+  /** Protocolo de transporte; los manifiestos usan valores como `m3u8_native`. */
+  protocol?: string | null;
 }
 
 interface YtDlpInfo {
@@ -58,16 +60,55 @@ function hasVideo(codec: string | null | undefined): boolean {
 }
 
 /**
+ * Indica si el protocolo corresponde a un manifiesto de streaming (HLS/DASH/ISM),
+ * que no es un archivo unico y por tanto no se puede ofrecer como descarga directa.
+ */
+function isStreamManifest(protocol: string | null | undefined): boolean {
+  if (typeof protocol !== "string") return false;
+  const value = protocol.toLowerCase();
+  return value.includes("m3u8") || value.includes("dash") || value.includes("ism");
+}
+
+/**
+ * Clave de identidad del medio. Dos formatos con la misma clave apuntan al mismo
+ * archivo, aunque cambien el `format_id` o el host del CDN.
+ */
+function mediaIdentity(format: YtDlpFormat): string {
+  return [
+    format.ext ?? "",
+    format.height ?? "",
+    format.fps ?? "",
+    format.vcodec ?? "",
+    format.acodec ?? "",
+    format.filesize ?? format.filesize_approx ?? "",
+    format.tbr ?? "",
+  ].join("|");
+}
+
+/**
  * Filtra los formatos que ya contienen audio y video en un solo archivo.
  * Los formatos con pistas separadas quedan excluidos por diseno (no hay ffmpeg).
+ * Tambien se descartan los manifiestos HLS/DASH y los duplicados: yt-dlp puede
+ * listar el mismo archivo varias veces (p. ej. TikTok emite pares `...-0`/`...-1`
+ * servidos desde hosts CDN distintos).
  */
 export function selectCombinedFormats(formats: YtDlpFormat[]): YtDlpFormat[] {
-  return formats.filter((format) => {
-    if (!format.format_id) return false;
-    if (!hasAudio(format.acodec) || !hasVideo(format.vcodec)) return false;
+  const seen = new Set<string>();
+  const combined: YtDlpFormat[] = [];
+
+  for (const format of formats) {
+    if (!format.format_id) continue;
+    if (!hasAudio(format.acodec) || !hasVideo(format.vcodec)) continue;
     // Se descartan los manifiestos HLS/DASH, que no son un archivo unico.
-    return true;
-  });
+    if (isStreamManifest(format.protocol)) continue;
+
+    const identity = mediaIdentity(format);
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    combined.push(format);
+  }
+
+  return combined;
 }
 
 /** Etiqueta legible para el usuario a partir del formato. */
