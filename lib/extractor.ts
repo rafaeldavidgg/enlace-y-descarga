@@ -52,11 +52,16 @@ export interface MediaInfo {
 
 /** Tamano minimo de audio para considerar que un formato tiene audio real. */
 function hasAudio(codec: string | null | undefined): boolean {
-  return typeof codec === "string" && codec !== "none" && codec.trim() !== "";
+  return isCodecKnown(codec) && codec !== "none";
 }
 
 function hasVideo(codec: string | null | undefined): boolean {
-  return typeof codec === "string" && codec !== "none" && codec.trim() !== "";
+  return isCodecKnown(codec) && codec !== "none";
+}
+
+/** Indica si yt-dlp reporto un valor de codec (aunque sea `none`). */
+function isCodecKnown(codec: string | null | undefined): boolean {
+  return typeof codec === "string" && codec.trim() !== "";
 }
 
 /**
@@ -85,6 +90,19 @@ function mediaIdentity(format: YtDlpFormat): string {
   ].join("|");
 }
 
+export interface SelectCombinedFormatsOptions {
+  /**
+   * Cuando yt-dlp no reporta `acodec` ni `vcodec` de un archivo directo (no
+   * manifiesto), se asume que ese archivo ya trae audio y video juntos.
+   *
+   * Es el caso de los MP4 progresivos de X (`http-*`): el extractor de yt-dlp
+   * los construye solo con URL, id y bitrate, de modo que la JSON no incluye
+   * códecs aunque el archivo contenga ambas pistas. Nunca se aplica a
+   * manifiestos HLS/DASH, que se descartan antes por no ser un archivo único.
+   */
+  assumeMuxedWhenCodecsUnknown?: boolean;
+}
+
 /**
  * Filtra los formatos que ya contienen audio y video en un solo archivo.
  * Los formatos con pistas separadas quedan excluidos por diseno (no hay ffmpeg).
@@ -92,15 +110,27 @@ function mediaIdentity(format: YtDlpFormat): string {
  * listar el mismo archivo varias veces (p. ej. TikTok emite pares `...-0`/`...-1`
  * servidos desde hosts CDN distintos).
  */
-export function selectCombinedFormats(formats: YtDlpFormat[]): YtDlpFormat[] {
+export function selectCombinedFormats(
+  formats: YtDlpFormat[],
+  options: SelectCombinedFormatsOptions = {},
+): YtDlpFormat[] {
   const seen = new Set<string>();
   const combined: YtDlpFormat[] = [];
 
   for (const format of formats) {
     if (!format.format_id) continue;
-    if (!hasAudio(format.acodec) || !hasVideo(format.vcodec)) continue;
     // Se descartan los manifiestos HLS/DASH, que no son un archivo unico.
     if (isStreamManifest(format.protocol)) continue;
+
+    const audioKnown = isCodecKnown(format.acodec);
+    const videoKnown = isCodecKnown(format.vcodec);
+    if (audioKnown && videoKnown) {
+      if (!hasAudio(format.acodec) || !hasVideo(format.vcodec)) continue;
+    } else if (audioKnown || videoKnown || !options.assumeMuxedWhenCodecsUnknown) {
+      // Si solo falta uno de los dos codecs no se puede afirmar que el archivo
+      // sea combinado (p. ej. las pistas HLS sueltas de X).
+      continue;
+    }
 
     const identity = mediaIdentity(format);
     if (seen.has(identity)) continue;
@@ -232,7 +262,10 @@ export async function resolveMediaInfo(rawUrl: string): Promise<MediaInfo> {
     throw new ExtractionError("FALLO_EXTRACCION", cause);
   }
 
-  const combined = selectCombinedFormats(info.formats ?? []).sort(byQualityDesc);
+  const combined = selectCombinedFormats(info.formats ?? [], {
+    // X no expone codecs de sus MP4 progresivos (ver opciones del selector).
+    assumeMuxedWhenCodecsUnknown: validation.platform === "twitter",
+  }).sort(byQualityDesc);
   if (combined.length === 0) {
     throw new ExtractionError("FORMATO_NO_DISPONIBLE");
   }

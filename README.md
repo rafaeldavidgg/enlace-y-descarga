@@ -15,7 +15,7 @@ o ejecutar en local.
 | Plataforma | Estado                                                      |
 +------------+-------------------------------------------------------------+
 | TikTok     | Soportada. Devuelve formatos mp4 con audio y video juntos.  |
-| X (Twitter)| Soportada. Solo funciona si el tweet incluye un video.      |
+| X (Twitter)| Soportada si hay MP4 con audio; algunos vídeos solo HLS.    |
 | Instagram  | Fuera de alcance: exige cookies de sesión.                  |
 | YouTube    | Fuera de alcance: ya no ofrece audio+video en un solo       |
 |            | archivo (todo es DASH con pistas separadas).                |
@@ -23,7 +23,9 @@ o ejecutar en local.
 ```
 
 No se extrae solo el audio (MP3) ni se fusionan pistas separadas: se descargan únicamente
-formatos que ya incluyen audio y video juntos, por lo que no hace falta `ffmpeg`.
+formatos que ya incluyen audio y video juntos, por lo que no hace falta `ffmpeg`. En X esos
+archivos son los MP4 progresivos (`http-*`); yt-dlp no reporta sus códecs, pero contienen
+ambas pistas. Cuando X solo ofrece HLS con pistas separadas, el vídeo no se puede descargar.
 
 ## Cómo funciona
 

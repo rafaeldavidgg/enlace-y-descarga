@@ -94,6 +94,45 @@ describe("selectCombinedFormats", () => {
     const combined = selectCombinedFormats(formats);
     expect(combined.map((f) => f.format_id)).toEqual(["http-720"]);
   });
+
+  it("incluye los MP4 progresivos de X sin codecs cuando se permite asumirlos", () => {
+    // yt-dlp lista los http-* de X sin acodec/vcodec aunque el archivo es muxed.
+    const formats = [
+      {
+        format_id: "hls-audio-128000-Audio",
+        vcodec: "none",
+        ext: "mp4",
+        protocol: "m3u8_native",
+      },
+      {
+        format_id: "hls-702",
+        acodec: "none",
+        vcodec: "avc1.640020",
+        ext: "mp4",
+        height: 720,
+        protocol: "m3u8_native",
+      },
+      { format_id: "http-432", ext: "mp4", height: 320, tbr: 432, protocol: "https" },
+      { format_id: "http-1280", ext: "mp4", height: 720, tbr: 1280, protocol: "https" },
+    ];
+    const combined = selectCombinedFormats(formats, { assumeMuxedWhenCodecsUnknown: true });
+    expect(combined.map((f) => f.format_id)).toEqual(["http-432", "http-1280"]);
+  });
+
+  it("excluye los formatos sin codecs cuando no se permite asumirlos", () => {
+    const formats = [{ format_id: "http-1280", ext: "mp4", height: 720, protocol: "https" }];
+    expect(selectCombinedFormats(formats)).toHaveLength(0);
+  });
+
+  it("no asume combinado si solo falta uno de los dos codecs", () => {
+    const formats = [
+      { format_id: "audio", vcodec: "none", ext: "mp4", protocol: "https" },
+      { format_id: "video", acodec: "none", ext: "mp4", protocol: "https" },
+    ];
+    expect(
+      selectCombinedFormats(formats, { assumeMuxedWhenCodecsUnknown: true }),
+    ).toHaveLength(0);
+  });
 });
 
 describe("formatLabel", () => {

@@ -3,7 +3,9 @@
  *
  * Plataformas soportadas (verificadas el 2026-09-27):
  *  - TikTok: expone formatos mp4 con audio y video juntos.
- *  - X/Twitter: funciona cuando el tweet contiene un video.
+ *  - X/Twitter: sus MP4 progresivos (`http-*`) ya traen audio y video juntos,
+ *    aunque yt-dlp no reporte `acodec`/`vcodec` para ellos. Los videos que X
+ *    sirve unicamente por HLS (pistas separadas) quedan fuera de alcance.
  *
  * Fuera de alcance: Instagram (exige cookies de sesion) y YouTube
  * (solo ofrece pistas DASH separadas).
