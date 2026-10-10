@@ -77,26 +77,34 @@ export default function Downloader() {
   }
 
   return (
-    <section className="w-full max-w-2xl">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3 sm:flex-row">
+    <section className="w-full min-w-0">
+      <form
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-3 rounded-card border border-border bg-surface p-3 shadow-card sm:p-4"
+      >
         <label htmlFor="url" className="sr-only">
           Enlace del video
         </label>
         <input
           id="url"
+          name="video-url"
           type="text"
           inputMode="url"
+          enterKeyHint="go"
+          autoCapitalize="off"
+          autoCorrect="off"
           autoComplete="off"
+          spellCheck={false}
           value={url}
           onChange={(event) => setUrl(event.target.value)}
           placeholder="Pega aquí el enlace de TikTok o X (Twitter)"
           disabled={resolving || downloading}
-          className="w-full rounded-lg border border-black/15 bg-white px-4 py-3 text-base text-neutral-900 outline-none focus:border-neutral-900 disabled:opacity-60 dark:border-white/20 dark:bg-neutral-900 dark:text-neutral-100 dark:focus:border-white"
+          className="min-h-[44px] w-full min-w-0 rounded-control border border-border bg-background px-4 text-base text-foreground outline-none placeholder:text-foreground/40 focus:ring-2 focus:ring-ring disabled:opacity-60"
         />
         <button
           type="submit"
           disabled={resolving || downloading || url.trim() === ""}
-          className="rounded-lg bg-neutral-900 px-5 py-3 font-medium text-white transition hover:bg-neutral-700 disabled:opacity-50 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+          className="min-h-[44px] w-full rounded-control bg-action px-5 font-medium text-action-contrast transition hover:bg-action-hover disabled:opacity-50 sm:w-auto"
         >
           {resolving ? "Resolviendo…" : "Buscar"}
         </button>
@@ -105,14 +113,14 @@ export default function Downloader() {
       {error && (
         <p
           role="alert"
-          className="mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
+          className="mt-3 rounded-control border border-red-300 bg-red-50 px-4 py-3 text-sm leading-relaxed break-words text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
         >
           {error}
         </p>
       )}
 
       {noFormats && !error && (
-        <p className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+        <p className="mt-3 rounded-control border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-relaxed break-words text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
           {isTiktok
             ? "Este video de TikTok no tiene una variante sin marca de agua descargable con audio y video juntos. No se ofrece la versión con marca de agua."
             : "Este video no tiene un formato descargable con audio y video juntos."}
@@ -120,32 +128,34 @@ export default function Downloader() {
       )}
 
       {info && status !== "idle" && (
-        <article className="mt-6 rounded-xl border border-black/10 p-4 dark:border-white/15">
-          <div className="flex flex-col gap-4 sm:flex-row">
+        <article className="mt-4 min-w-0 rounded-card border border-border bg-surface p-3 shadow-card sm:p-4">
+          <div className="flex min-w-0 flex-col gap-4">
             {info.thumbnail ? (
-              // Miniatura remota de la plataforma; se usa <img> porque el dominio
-              // de origen es dinámico y no está configurado en next/image.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={info.thumbnail}
-                alt=""
-                className="h-32 w-full rounded-lg object-cover sm:w-48"
-                referrerPolicy="no-referrer"
-              />
+              <div className="w-full min-w-0 overflow-hidden rounded-control border border-border bg-sunken">
+                {/* Miniatura remota de la plataforma; se usa <img> porque el dominio
+                de origen es dinámico y no está configurado en next/image. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={info.thumbnail}
+                  alt=""
+                  className="aspect-video h-auto w-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
             ) : null}
-            <div className="flex-1">
-              <h2 className="text-lg font-semibold">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg leading-snug font-semibold break-words text-pretty">
                 {info.title ?? "Video sin título"}
               </h2>
-              <dl className="mt-2 space-y-1 text-sm opacity-80">
+              <dl className="mt-2 space-y-1 text-sm text-foreground/70">
                 {formatDuration(info.durationSeconds) && (
                   <div>
-                    <dt className="inline font-medium">Duración: </dt>
+                    <dt className="inline font-medium text-foreground">Duración: </dt>
                     <dd className="inline">{formatDuration(info.durationSeconds)}</dd>
                   </div>
                 )}
                 <div>
-                  <dt className="inline font-medium">Plataforma: </dt>
+                  <dt className="inline font-medium text-foreground">Plataforma: </dt>
                   <dd className="inline">{info.platform === "tiktok" ? "TikTok" : "X (Twitter)"}</dd>
                 </div>
               </dl>
@@ -154,7 +164,7 @@ export default function Downloader() {
 
           {formats.length > 0 && (
             <div className="mt-4">
-              <label htmlFor="calidad" className="mb-1 block text-sm font-medium">
+              <label htmlFor="calidad" className="mb-1.5 block text-sm font-medium">
                 Calidad
               </label>
               <select
@@ -162,7 +172,7 @@ export default function Downloader() {
                 value={selectedRef ?? ""}
                 onChange={(event) => setSelectedRef(event.target.value)}
                 disabled={downloading}
-                className="w-full rounded-lg border border-black/15 bg-white px-3 py-2 text-sm dark:border-white/20 dark:bg-neutral-900"
+                className="min-h-[44px] w-full min-w-0 rounded-control border border-border bg-background px-3 text-base disabled:opacity-60"
               >
                 {formats.map((format) => {
                   const size = formatBytes(format.approxBytes);
@@ -175,19 +185,19 @@ export default function Downloader() {
                 })}
               </select>
               {isTiktok && (
-                <p className="mt-1 text-xs opacity-70">
+                <p className="mt-1.5 text-xs leading-relaxed text-foreground/60">
                   Descarga sin marca de agua (sin marca móvil ni tarjeta final).
                 </p>
               )}
             </div>
           )}
 
-          <div className="mt-4 flex flex-wrap gap-3">
+          <div className="mt-4 flex flex-col gap-2.5 sm:flex-row">
             <button
               type="button"
               onClick={handleDownload}
               disabled={!selectedRef || downloading}
-              className="rounded-lg bg-neutral-900 px-5 py-2.5 font-medium text-white transition hover:bg-neutral-700 disabled:opacity-50 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+              className="min-h-[44px] w-full rounded-control bg-action px-5 font-medium text-action-contrast transition hover:bg-action-hover disabled:opacity-50 sm:w-auto"
             >
               {downloading ? "Descargando…" : "Descargar video"}
             </button>
@@ -195,7 +205,7 @@ export default function Downloader() {
               type="button"
               onClick={reset}
               disabled={downloading}
-              className="rounded-lg border border-black/15 px-5 py-2.5 font-medium transition hover:bg-black/5 disabled:opacity-50 dark:border-white/20 dark:hover:bg-white/10"
+              className="min-h-[44px] w-full rounded-control border border-border px-5 font-medium transition hover:bg-black/5 disabled:opacity-50 dark:hover:bg-white/10 sm:w-auto"
             >
               Empezar de nuevo
             </button>
