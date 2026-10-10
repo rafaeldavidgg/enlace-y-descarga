@@ -11,7 +11,8 @@ export default function Home() {
         <p className="mt-2 opacity-80">
           Pega un enlace de <strong>TikTok</strong> o <strong>X (Twitter)</strong> y descarga el
           video con audio desde cualquier dispositivo. Sin cuentas, sin anuncios y sin instalar
-          nada.
+          nada. Los videos de TikTok se descargan <strong>sin marca de agua</strong> (ni la
+          móvil durante el video ni la del final).
         </p>
       </header>
 
@@ -28,8 +29,10 @@ export default function Home() {
           tengas derecho a usar y no lo redistribuyas sin permiso.
         </p>
         <p className="mt-2 opacity-80">
-          Plataformas soportadas: TikTok y X (Twitter). Instagram y YouTube no están soportados
-          por ahora. Con enlaces de X, solo funciona si el tweet incluye un video.
+          Plataformas soportadas: TikTok (sin marca de agua) y X (Twitter). Instagram y YouTube
+          no están soportados por ahora. Con enlaces de X, solo funciona si el tweet incluye un
+          video. Si un TikTok no tiene variante sin marca disponible, la app lo informa en lugar
+          de descargar la versión marcada.
         </p>
         <p className="mt-2 opacity-80">
           Límite conocido: {MAX_TRANSFER_NOTE} Las descargas muy largas pueden cortarse.

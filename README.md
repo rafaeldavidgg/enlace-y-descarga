@@ -14,7 +14,7 @@ o ejecutar en local.
 +------------+-------------------------------------------------------------+
 | Plataforma | Estado                                                      |
 +------------+-------------------------------------------------------------+
-| TikTok     | Soportada. Devuelve formatos mp4 con audio y video juntos.  |
+| TikTok     | Soportada. Descarga SIN marca de agua (ni la móvil ni la del final), en mp4 con audio y video juntos. Si no hay variante limpia, se informa en lugar de entregar la marcada. |
 | X (Twitter)| Soportada si hay MP4 con audio; algunos vídeos solo HLS.    |
 | Instagram  | Fuera de alcance: exige cookies de sesión.                  |
 | YouTube    | Fuera de alcance: ya no ofrece audio+video en un solo       |
@@ -23,8 +23,10 @@ o ejecutar en local.
 ```
 
 No se extrae solo el audio (MP3) ni se fusionan pistas separadas: se descargan únicamente
-formatos que ya incluyen audio y video juntos, por lo que no hace falta `ffmpeg`. En X esos
-archivos son los MP4 progresivos (`http-*`); yt-dlp no reporta sus códecs, pero contienen
+formatos que ya incluyen audio y video juntos, por lo que no hace falta `ffmpeg`. En TikTok
+se ofrecen solo variantes sin marca de agua (se excluyen las marcadas cuando hay alternativa
+limpia; si no la hay, la app lo informa con un error claro en lugar de descargar la marcada).
+En X esos archivos son los MP4 progresivos (`http-*`); yt-dlp no reporta sus códecs, pero contienen
 ambas pistas. Cuando X solo ofrece HLS con pistas separadas, el vídeo no se puede descargar.
 
 ## Cómo funciona

@@ -17,6 +17,7 @@ export default function Downloader() {
   const downloading = status === "descargando";
   const formats = info?.formats ?? [];
   const noFormats = status === "listo" && formats.length === 0;
+  const isTiktok = info?.platform === "tiktok";
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -112,7 +113,9 @@ export default function Downloader() {
 
       {noFormats && !error && (
         <p className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          Este video no tiene un formato descargable con audio y video juntos.
+          {isTiktok
+            ? "Este video de TikTok no tiene una variante sin marca de agua descargable con audio y video juntos. No se ofrece la versión con marca de agua."
+            : "Este video no tiene un formato descargable con audio y video juntos."}
         </p>
       )}
 
@@ -171,6 +174,11 @@ export default function Downloader() {
                   );
                 })}
               </select>
+              {isTiktok && (
+                <p className="mt-1 text-xs opacity-70">
+                  Descarga sin marca de agua (sin marca móvil ni tarjeta final).
+                </p>
+              )}
             </div>
           )}
 

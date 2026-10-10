@@ -13,6 +13,7 @@ export type ExtractionErrorCode =
   | "CONTENIDO_PRIVADO"
   | "REQUIERE_AUTENTICACION"
   | "FORMATO_NO_DISPONIBLE"
+  | "SIN_MARCA_NO_DISPONIBLE"
   | "TIEMPO_AGOTADO"
   | "FALLO_EXTRACCION";
 
@@ -29,6 +30,8 @@ const ERROR_MESSAGES: Record<ExtractionErrorCode, string> = {
     "Ese contenido requiere iniciar sesión y no se puede procesar desde aquí.",
   FORMATO_NO_DISPONIBLE:
     "No hay un formato descargable disponible para este video con audio y video juntos.",
+  SIN_MARCA_NO_DISPONIBLE:
+    "Este video de TikTok no tiene una variante sin marca de agua descargable con audio y video juntos. No se ofrece la versión con marca de agua (ni la móvil ni la del final).",
   TIEMPO_AGOTADO:
     "La descarga tardó demasiado. Prueba con un formato de menor calidad o inténtalo de nuevo más tarde.",
   FALLO_EXTRACCION:

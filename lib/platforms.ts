@@ -2,7 +2,12 @@
  * Reconocimiento de plataformas soportadas y validacion de enlaces.
  *
  * Plataformas soportadas (verificadas el 2026-09-27):
- *  - TikTok: expone formatos mp4 con audio y video juntos.
+ *  - TikTok: expone formatos mp4 con audio y video juntos. Las descargas que
+ *    ofrece esta app son SIN marca de agua (ni la movil durante el video ni la
+ *    tarjeta del final): `lib/extractor.ts` filtra con `isTikTokWatermarked()`
+ *    (nota con "watermark" o `format_id: "download"`) y excluye las variantes
+ *    marcadas cuando hay alternativa limpia; si no hay limpia, informa
+ *    `SIN_MARCA_NO_DISPONIBLE` en lugar de entregar la marcada.
  *  - X/Twitter: sus MP4 progresivos (`http-*`) ya traen audio y video juntos,
  *    aunque yt-dlp no reporte `acodec`/`vcodec` para ellos. Los videos que X
  *    sirve unicamente por HLS (pistas separadas) quedan fuera de alcance.

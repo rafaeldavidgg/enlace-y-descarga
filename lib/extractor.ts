@@ -6,6 +6,7 @@ import { type Platform, validateLink } from "./platforms";
 interface YtDlpFormat {
   format_id?: string;
   ext?: string;
+  url?: string | null;
   acodec?: string | null;
   vcodec?: string | null;
   height?: number | null;
@@ -75,6 +76,30 @@ function isStreamManifest(protocol: string | null | undefined): boolean {
 }
 
 /**
+ * Indica si un formato de TikTok lleva marca de agua.
+ *
+ * Senales observadas en el extractor TikTok de yt-dlp (ver `yt_dlp/extractor/tiktok.py`):
+ *  - Ruta app: `download_addr` lleva `format_note: "Download video, watermarked"`
+ *    solo cuando el video tiene marca (`has_watermark`); las variantes limpias usan
+ *    notas como "Direct video", "Playback video" o "Download video" (sin sufijo).
+ *  - Ruta web (`_extract_web_formats`): el formato `format_id: "download"` lleva
+ *    siempre `format_note: "watermarked"` (preferencia -2); los `play*` y bitrates
+ *    son limpios.
+ *
+ * Regla conservadora: marca si `format_note` contiene "watermark"
+ * (insensible a mayusculas) o si `format_id` es exactamente "download".
+ * `download_addr` sin nota de marca se considera limpio a proposito.
+ */
+export function isTikTokWatermarked(format: YtDlpFormat): boolean {
+  const note = typeof format.format_note === "string" ? format.format_note.toLowerCase() : "";
+  if (note.includes("watermark")) return true;
+  if (typeof format.format_id === "string" && format.format_id.toLowerCase() === "download") {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Clave de identidad del medio. Dos formatos con la misma clave apuntan al mismo
  * archivo, aunque cambien el `format_id` o el host del CDN.
  */
@@ -101,6 +126,17 @@ export interface SelectCombinedFormatsOptions {
    * manifiestos HLS/DASH, que se descartan antes por no ser un archivo único.
    */
   assumeMuxedWhenCodecsUnknown?: boolean;
+  /**
+   * Plataforma del enlace (`tiktok` | `twitter`). Solo cuando es `tiktok` se
+   * aplica el filtro de marca de agua. Si se omite, no se filtra por marca
+   * (comportamiento historico, usado por tests genericos).
+   */
+  platform?: string;
+  /**
+   * Excluye variantes TikTok con marca de agua cuando existe alternativa limpia.
+   * Por defecto `true` para TikTok; en `false` desactiva el filtro (solo tests).
+   */
+  excludeWatermarked?: boolean;
 }
 
 /**
@@ -109,13 +145,23 @@ export interface SelectCombinedFormatsOptions {
  * Tambien se descartan los manifiestos HLS/DASH y los duplicados: yt-dlp puede
  * listar el mismo archivo varias veces (p. ej. TikTok emite pares `...-0`/`...-1`
  * servidos desde hosts CDN distintos).
+ *
+ * Para TikTok (`options.platform === "tiktok"`, salvo `excludeWatermarked: false`):
+ * se aplica exclusion estricta de marca de agua en dos fases. Primero se recogen
+ * los candidatos combinados y se particionan en limpios/marcados con
+ * `isTikTokWatermarked()`; si hay al menos un limpio, se descartan TODOS los
+ * marcados y solo se deduplica y devuelve lo limpio. Si no hay ninguno limpio,
+ * se devuelve vacio para que la capa superior informe "sin marca disponible"
+ * en lugar de ofrecer la variante con marca.
  */
 export function selectCombinedFormats(
   formats: YtDlpFormat[],
   options: SelectCombinedFormatsOptions = {},
 ): YtDlpFormat[] {
-  const seen = new Set<string>();
-  const combined: YtDlpFormat[] = [];
+  const filterWatermark =
+    options.platform === "tiktok" && options.excludeWatermarked !== false;
+
+  const candidates: YtDlpFormat[] = [];
 
   for (const format of formats) {
     if (!format.format_id) continue;
@@ -132,7 +178,27 @@ export function selectCombinedFormats(
       continue;
     }
 
-    const identity = mediaIdentity(format);
+    candidates.push(format);
+  }
+
+  const shortlisted = filterWatermark
+    ? (() => {
+        const clean = candidates.filter((f) => !isTikTokWatermarked(f));
+        // Exclusion estricta: si hay limpia, la marcada no se ofrece.
+        // Si no hay limpia, vacio (no fallback a marcada).
+        return clean.length > 0 ? clean : [];
+      })()
+    : candidates;
+
+  // Deduplicacion consciente de marca: la clave incluye la senal de marca para
+  // no colapsar nunca una variante limpia con una marcada.
+  const seen = new Set<string>();
+  const combined: YtDlpFormat[] = [];
+
+  for (const format of shortlisted) {
+    const identity =
+      mediaIdentity(format) +
+      (filterWatermark ? `|${isTikTokWatermarked(format) ? "wm" : "clean"}` : "");
     if (seen.has(identity)) continue;
     seen.add(identity);
     combined.push(format);
@@ -142,12 +208,13 @@ export function selectCombinedFormats(
 }
 
 /** Etiqueta legible para el usuario a partir del formato. */
-export function formatLabel(format: YtDlpFormat): string {
+export function formatLabel(format: YtDlpFormat, opts?: { sinMarca?: boolean }): string {
   const height = typeof format.height === "number" ? `${format.height}p` : null;
   const ext = format.ext ?? "video";
   const fps = typeof format.fps === "number" && format.fps >= 50 ? `${Math.round(format.fps)}fps` : null;
   const parts = [height, fps].filter(Boolean).join(" ");
-  return parts ? `${parts} (${ext})` : `Video (${ext})`;
+  const base = parts ? `${parts} (${ext})` : `Video (${ext})`;
+  return opts?.sinMarca ? `${base} · Sin marca de agua` : base;
 }
 
 /** Ordena de mejor a peor: mas resolucion, luego mas bitrate. */
@@ -265,8 +332,14 @@ export async function resolveMediaInfo(rawUrl: string): Promise<MediaInfo> {
   const combined = selectCombinedFormats(info.formats ?? [], {
     // X no expone codecs de sus MP4 progresivos (ver opciones del selector).
     assumeMuxedWhenCodecsUnknown: validation.platform === "twitter",
+    platform: validation.platform,
   }).sort(byQualityDesc);
   if (combined.length === 0) {
+    // En TikTok el vacio significa "sin variante limpia combinada": no se ofrece
+    // la marcada como fallback (garantia sin marca de agua de extremo a extremo).
+    if (validation.platform === "tiktok") {
+      throw new ExtractionError("SIN_MARCA_NO_DISPONIBLE");
+    }
     throw new ExtractionError("FORMATO_NO_DISPONIBLE");
   }
 
@@ -275,7 +348,7 @@ export async function resolveMediaInfo(rawUrl: string): Promise<MediaInfo> {
 
   const formats: MediaFormat[] = combined.map((format) => ({
     ref: encodeFormatRef(validation.url, format.format_id as string, title, format.ext ?? "mp4"),
-    label: formatLabel(format),
+    label: formatLabel(format, { sinMarca: validation.platform === "tiktok" }),
     ext: format.ext ?? "mp4",
     height: typeof format.height === "number" ? format.height : null,
     approxBytes: format.filesize ?? format.filesize_approx ?? null,

@@ -6,6 +6,10 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
  * Se aísla aquí para poder sustituirlo en pruebas sin tocar la ruta HTTP, y
  * para garantizar que siempre se invoca sin shell (evita interpolar la URL en
  * una línea de comandos).
+ *
+ * Se usa el `formatId` EXACTO de la referencia (sin fallback a `best`): es lo
+ * que garantiza que un TikTok resuelto como limpio se descargue limpio y que,
+ * si deja de existir, la ruta falle en lugar de entregar la variante marcada.
  */
 export function spawnDownloadProcess(
   binary: string,

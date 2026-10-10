@@ -1,7 +1,7 @@
 import { Readable } from "node:stream";
 import { decodeFormatRef, resolveFormatExt } from "@/lib/extractor";
 import { spawnDownloadProcess } from "@/lib/download-process";
-import { assertYtDlpAvailable, ExtractionError } from "@/lib/ytdlp";
+import { assertYtDlpAvailable, classifyYtDlpError, ExtractionError } from "@/lib/ytdlp";
 
 /**
  * Descarga un formato resuelto previamente, reenviándolo en streaming.
@@ -12,6 +12,11 @@ import { assertYtDlpAvailable, ExtractionError } from "@/lib/ytdlp";
  * El streaming evita el límite de cuerpo de respuesta de 4.5 MB de la plataforma
  * de despliegue, y `Content-Disposition` fuerza la descarga real en lugar de la
  * reproducción (el atributo `download` de HTML se ignora entre orígenes).
+ *
+ * Garantia sin marca de agua (TikTok): se descarga EXACTAMENTE el `format_id`
+ * limpio de la referencia (`yt-dlp -f <id>`), sin fallback a `best` ni
+ * re-resolucion. Si ese formato deja de estar disponible, se devuelve un error
+ * claro (nunca se sustituye por la variante con marca).
  */
 export const maxDuration = 300;
 
@@ -105,13 +110,17 @@ export async function GET(request: Request) {
 
     child.once("close", (code) => {
       if (code !== 0) {
+        // Sin sustitucion: si el formato limpio ya no existe (p. ej.
+        // "Requested format is not available"), se informa el error clasificado
+        // en lugar de reintentar con otro formato (que podria ser el marcado).
+        const errorCode = classifyYtDlpError(stderr);
+        const message = new ExtractionError(errorCode).message;
         fail(
           Response.json(
             {
               error: {
-                code: "CONTENIDO_PRIVADO",
-                message:
-                  "No se pudo obtener el archivo. Puede que el contenido ya no esté disponible; vuelve a resolver el enlace.",
+                code: errorCode,
+                message,
               },
             },
             { status: 502 },

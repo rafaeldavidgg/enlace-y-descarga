@@ -23,6 +23,7 @@ function fakeProcess(opts: {
   exitCode?: number;
   emitNothing?: boolean;
   neverClose?: boolean;
+  stderrText?: string;
 }) {
   const stdout = new PassThrough();
   const stderr = new PassThrough();
@@ -56,6 +57,7 @@ function fakeProcess(opts: {
   } else if (!opts.emitNothing) {
     // Se emite en el siguiente tick, cuando la ruta ya conectó sus oyentes.
     setTimeout(() => {
+      if (opts.stderrText) stderr.write(opts.stderrText);
       const size = opts.size ?? 0;
       const chunk = Buffer.alloc(1024 * 1024, 7);
       let written = 0;
@@ -69,6 +71,7 @@ function fakeProcess(opts: {
     }, 10);
   } else {
     setTimeout(() => {
+      if (opts.stderrText) stderr.write(opts.stderrText);
       for (const cb of listeners.close ?? []) cb(opts.exitCode ?? 1);
     }, 10);
   }
@@ -110,7 +113,25 @@ describe("GET /api/download (streaming)", () => {
     const response = await GET(new Request(`http://localhost/api/download?ref=${encodeURIComponent(ref())}`));
     expect(response.status).toBe(502);
     const json = await response.json();
-    expect(json.error.message).toMatch(/no se pudo obtener|no está disponible/i);
+    expect(json.error.message).toMatch(/no se pudo obtener|no está disponible|no se pudo procesar|no hay un formato/i);
+  }, 30_000);
+
+  it("no sustituye la variante limpia: formato no disponible devuelve error, no otro archivo", async () => {
+    // El formato limpio de la referencia ya no existe en el origen.
+    spawnMock.mockReturnValue(
+      fakeProcess({
+        emitNothing: true,
+        exitCode: 1,
+        stderrText: "ERROR: Requested format is not available",
+      }),
+    );
+
+    const response = await GET(new Request(`http://localhost/api/download?ref=${encodeURIComponent(ref())}`));
+    expect(response.status).toBe(502);
+    const json = await response.json();
+    // Se informa el error clasificado y no se entrega ningun archivo.
+    expect(json.error.code).toBe("FORMATO_NO_DISPONIBLE");
+    expect(response.headers.get("content-disposition")).toBeNull();
   }, 30_000);
 
   it("cancela el proceso de descarga cuando el cliente interrumpe", async () => {
