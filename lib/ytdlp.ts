@@ -71,6 +71,15 @@ export function classifyYtDlpError(stderr: string): ExtractionErrorCode {
     return "FORMATO_NO_DISPONIBLE";
   }
 
+  // Conversion a MP3 sin ffmpeg: yt-dlp avisa en el postprocesado
+  // ("ffprobe and ffmpeg not found ... --ffmpeg-location").
+  if (
+    text.includes("ffmpeg") &&
+    (text.includes("not found") || text.includes("not installed") || text.includes("ffmpeg-location"))
+  ) {
+    return "BINARIO_AUSENTE";
+  }
+
   if (
     text.includes("sign in") ||
     text.includes("login") ||

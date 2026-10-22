@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { ApiError, MediaInfo } from "@/lib/types";
 import { formatBytes, formatDuration, pickDefaultFormat } from "@/lib/format";
 
-type Status = "idle" | "resolviendo" | "listo" | "descargando";
+type Status = "idle" | "resolviendo" | "listo" | "descargando" | "descargando-audio";
 
 export default function Downloader() {
   const [url, setUrl] = useState("");
@@ -15,6 +15,8 @@ export default function Downloader() {
 
   const resolving = status === "resolviendo";
   const downloading = status === "descargando";
+  const downloadingAudio = status === "descargando-audio";
+  const busy = downloading || downloadingAudio;
   const formats = info?.formats ?? [];
   const noFormats = status === "listo" && formats.length === 0;
   const isTiktok = info?.platform === "tiktok";
@@ -68,6 +70,22 @@ export default function Downloader() {
     window.setTimeout(() => setStatus("listo"), 1500);
   }
 
+  function handleAudioDownload() {
+    if (!selectedRef) return;
+    setError(null);
+    setStatus("descargando-audio");
+
+    // El MP3 deriva del formato de video seleccionado (misma referencia): el
+    // servidor extrae el audio de esa variante limpia.
+    const link = document.createElement("a");
+    link.href = `/api/download?ref=${encodeURIComponent(selectedRef)}&audio=mp3`;
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => setStatus("listo"), 1500);
+  }
+
   function reset() {
     setUrl("");
     setInfo(null);
@@ -98,12 +116,12 @@ export default function Downloader() {
           value={url}
           onChange={(event) => setUrl(event.target.value)}
           placeholder="Pega aquí el enlace de TikTok o X (Twitter)"
-          disabled={resolving || downloading}
+          disabled={resolving || busy}
           className="min-h-[44px] w-full min-w-0 rounded-control border border-border bg-background px-4 text-base text-foreground outline-none placeholder:text-foreground/40 focus:ring-2 focus:ring-ring disabled:opacity-60"
         />
         <button
           type="submit"
-          disabled={resolving || downloading || url.trim() === ""}
+          disabled={resolving || busy || url.trim() === ""}
           className="min-h-[44px] w-full rounded-control bg-action px-5 font-medium text-action-contrast transition hover:bg-action-hover disabled:opacity-50 sm:w-auto"
         >
           {resolving ? "Resolviendo…" : "Buscar"}
@@ -171,7 +189,7 @@ export default function Downloader() {
                 id="calidad"
                 value={selectedRef ?? ""}
                 onChange={(event) => setSelectedRef(event.target.value)}
-                disabled={downloading}
+                disabled={busy}
                 className="min-h-[44px] w-full min-w-0 rounded-control border border-border bg-background px-3 text-base disabled:opacity-60"
               >
                 {formats.map((format) => {
@@ -192,24 +210,40 @@ export default function Downloader() {
             </div>
           )}
 
-          <div className="mt-4 flex flex-col gap-2.5 sm:flex-row">
+          <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
             <button
               type="button"
               onClick={handleDownload}
-              disabled={!selectedRef || downloading}
+              disabled={!selectedRef || busy}
               className="min-h-[44px] w-full rounded-control bg-action px-5 font-medium text-action-contrast transition hover:bg-action-hover disabled:opacity-50 sm:w-auto"
             >
               {downloading ? "Descargando…" : "Descargar video"}
             </button>
+            {isTiktok && formats.length > 0 && (
+              <button
+                type="button"
+                onClick={handleAudioDownload}
+                disabled={!selectedRef || busy}
+                className="min-h-[44px] w-full rounded-control border border-border px-5 font-medium transition hover:bg-black/5 disabled:opacity-50 dark:hover:bg-white/10 sm:w-auto"
+              >
+                {downloadingAudio ? "Descargando…" : "Descargar audio (MP3)"}
+              </button>
+            )}
             <button
               type="button"
               onClick={reset}
-              disabled={downloading}
+              disabled={busy}
               className="min-h-[44px] w-full rounded-control border border-border px-5 font-medium transition hover:bg-black/5 disabled:opacity-50 dark:hover:bg-white/10 sm:w-auto"
             >
               Empezar de nuevo
             </button>
           </div>
+          {isTiktok && formats.length > 0 && (
+            <p className="mt-1.5 text-xs leading-relaxed text-foreground/60">
+              El audio puede incluir música sujeta a derechos de autor: descárgalo solo si
+              tienes derecho a usarlo.
+            </p>
+          )}
         </article>
       )}
     </section>

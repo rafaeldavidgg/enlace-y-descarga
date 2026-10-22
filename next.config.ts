@@ -5,10 +5,12 @@ const nextConfig: NextConfig = {
   // incluye explícitamente en el paquete de las funciones que lo ejecutan, porque
   // se invoca por ruta resuelta en runtime y el trazador no puede detectarlo.
   //
-  // Se prefiere el nombre de la carpeta por patrón para no arrastrar todo el repo.
+  // El binario de ffmpeg llega con la dependencia `ffmpeg-static` y se resuelve
+  // en runtime (`lib/ffmpeg.ts`); solo lo necesita `/api/download` (modo audio).
+  // Se incluye por patrón para no arrastrar todo el repo.
   outputFileTracingIncludes: {
     "/api/info": ["./bin/**/*"],
-    "/api/download": ["./bin/**/*"],
+    "/api/download": ["./bin/**/*", "./node_modules/ffmpeg-static/ffmpeg*"],
   },
 };
 

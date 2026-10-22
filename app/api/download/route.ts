@@ -1,12 +1,14 @@
 import { Readable } from "node:stream";
 import { decodeFormatRef, resolveFormatExt } from "@/lib/extractor";
-import { spawnDownloadProcess } from "@/lib/download-process";
+import { spawnAudioPipeline, spawnDownloadProcess } from "@/lib/download-process";
+import { assertFfmpegAvailable } from "@/lib/ffmpeg";
+import { validateLink } from "@/lib/platforms";
 import { assertYtDlpAvailable, classifyYtDlpError, ExtractionError } from "@/lib/ytdlp";
 
 /**
  * Descarga un formato resuelto previamente, reenviándolo en streaming.
  *
- * Entrada: `?ref=<referencia opaca firmada>`.
+ * Entrada: `?ref=<referencia opaca firmada>` y, opcionalmente, `&audio=mp3`.
  * Salida: el archivo con `Content-Disposition: attachment`.
  *
  * El streaming evita el límite de cuerpo de respuesta de 4.5 MB de la plataforma
@@ -17,6 +19,10 @@ import { assertYtDlpAvailable, classifyYtDlpError, ExtractionError } from "@/lib
  * limpio de la referencia (`yt-dlp -f <id>`), sin fallback a `best` ni
  * re-resolucion. Si ese formato deja de estar disponible, se devuelve un error
  * claro (nunca se sustituye por la variante con marca).
+ *
+ * Modo audio (`&audio=mp3`, solo TikTok): extrae el audio del MISMO `format_id`
+ * limpio mediante la tuberia `yt-dlp -f <id> -o - | ffmpeg -i pipe:0 ... pipe:1`
+ * y lo entrega como `*.mp3` (`audio/mpeg`). La via de video no cambia.
  */
 export const maxDuration = 300;
 
@@ -24,7 +30,7 @@ export const maxDuration = 300;
 const DOWNLOAD_TIMEOUT_MS = 300_000;
 
 /** Extensiones permitidas para el nombre de archivo. */
-const ALLOWED_EXTENSIONS = new Set(["mp4", "webm", "mkv", "mov", "m4a"]);
+const ALLOWED_EXTENSIONS = new Set(["mp4", "webm", "mkv", "mov", "m4a", "mp3"]);
 
 /** Nombre de archivo seguro y con extensión coherente. */
 export function buildFileName(title: string | null, ext: string): string {
@@ -50,6 +56,22 @@ export function contentDisposition(fileName: string): string {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const ref = searchParams.get("ref") ?? "";
+  const audioParam = searchParams.get("audio");
+
+  // El modo audio solo admite `mp3`; cualquier otro valor es un error claro
+  // en lugar de una descarga de video silenciosa.
+  if (audioParam !== null && audioParam !== "mp3") {
+    return Response.json(
+      {
+        error: {
+          code: "ENLACE_INVALIDO",
+          message: "El modo de audio no es válido. Usa el botón de descarga de audio e inténtalo de nuevo.",
+        },
+      },
+      { status: 400 },
+    );
+  }
+  const audioMode = audioParam === "mp3";
 
   const decoded = decodeFormatRef(ref);
   if (!decoded) {
@@ -64,6 +86,23 @@ export async function GET(request: Request) {
     );
   }
 
+  // El MP3 solo esta disponible para TikTok: la referencia no lleva la
+  // plataforma, asi que se deduce del enlace original (sin re-resolucion).
+  if (audioMode) {
+    const validation = validateLink(decoded.u);
+    if (!validation.ok || validation.platform !== "tiktok") {
+      return Response.json(
+        {
+          error: {
+            code: "PLATAFORMA_NO_SOPORTADA",
+            message: "El audio en MP3 solo está disponible para videos de TikTok.",
+          },
+        },
+        { status: 400 },
+      );
+    }
+  }
+
   let binary: string;
   try {
     binary = await assertYtDlpAvailable();
@@ -74,12 +113,35 @@ export async function GET(request: Request) {
     throw error;
   }
 
-  const ext = resolveFormatExt(decoded.f);
+  const ext = audioMode ? "mp3" : resolveFormatExt(decoded.f);
   const fileName = buildFileName(decoded.t, ext);
 
+  // En modo audio, el binario de conversion debe existir ANTES de lanzar nada:
+  // sin el, la tuberia no puede producir MP3 y se informa como ausente.
+  let ffmpegBinary: string | null = null;
+  if (audioMode) {
+    try {
+      ffmpegBinary = await assertFfmpegAvailable();
+    } catch (error) {
+      if (error instanceof ExtractionError) {
+        return Response.json(
+          { error: { code: error.code, message: error.message } },
+          { status: 500 },
+        );
+      }
+      throw error;
+    }
+  }
+
   // yt-dlp escribe el archivo a stdout con `-o -`. El flujo se reenvía tal cual,
-  // sin almacenamiento intermedio ni cargar el archivo en memoria.
-  const child = spawnDownloadProcess(binary, decoded.f, decoded.u);
+  // sin almacenamiento intermedio ni cargar el archivo en memoria. En modo
+  // audio se encadena `yt-dlp -o - | ffmpeg -i pipe:0 ... pipe:1` sobre el
+  // mismo `formatId` limpio, sin fallback.
+  const child = audioMode
+    ? spawnAudioPipeline(binary, decoded.f, decoded.u, {
+        ffmpegBinary: ffmpegBinary as string,
+      })
+    : spawnDownloadProcess(binary, decoded.f, decoded.u);
 
   let stdoutStarted = false;
   let stderr = "";
@@ -178,7 +240,7 @@ export async function GET(request: Request) {
     {
       status: 200,
       headers: {
-        "Content-Type": `video/${ext === "m4a" ? "mp4" : ext}`,
+        "Content-Type": audioMode ? "audio/mpeg" : `video/${ext === "m4a" ? "mp4" : ext}`,
         "Content-Disposition": contentDisposition(fileName),
         "Cache-Control": "no-store",
       },
