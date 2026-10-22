@@ -124,8 +124,18 @@ export async function GET(request: Request) {
       ffmpegBinary = await assertFfmpegAvailable();
     } catch (error) {
       if (error instanceof ExtractionError) {
+        // Mensaje propio del modo audio: el generico de BINARIO_AUSENTE habla
+        // del motor de descarga y confunde aqui. La causa queda en el log del
+        // servidor para diagnosticar el despliegue.
+        console.error("[api/download] ffmpeg no disponible para modo audio", error.cause ?? error);
         return Response.json(
-          { error: { code: error.code, message: error.message } },
+          {
+            error: {
+              code: error.code,
+              message:
+                "No se pudo preparar la conversión a MP3 porque falta el componente de audio (ffmpeg). En local, ejecuta `npm install` y vuelve a intentarlo.",
+            },
+          },
           { status: 500 },
         );
       }

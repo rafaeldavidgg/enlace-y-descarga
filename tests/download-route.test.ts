@@ -239,6 +239,7 @@ describe("GET /api/download (streaming)", () => {
       expect(response.status).toBe(500);
       const json = await response.json();
       expect(json.error.code).toBe("BINARIO_AUSENTE");
+      expect(json.error.message).toMatch(/ffmpeg/i);
       expect(spawnPipelineMock).not.toHaveBeenCalled();
       expect(response.headers.get("content-disposition")).toBeNull();
     });

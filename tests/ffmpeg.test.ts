@@ -28,24 +28,21 @@ describe("resolveFfmpegDir", () => {
     expect(resolveFfmpegDir()).toBe(path.join("C:", "tools", "ffmpeg"));
   });
 
-  it("devuelve null sin configuracion ni dependencia", () => {
+  it("ofrece un candidato sin depender de que require exista en el runtime", () => {
     vi.stubEnv("FFMPEG_PATH", "");
-    // Sin FFMPEG_PATH solo queda ffmpeg-static si esta instalado; el resultado
-    // es su directorio o null, nunca una cadena vacia.
+    // Sin FFMPEG_PATH queda el paquete o la ubicacion habitual bajo
+    // node_modules: en ambos casos una ruta no vacia al binario esperado
+    // segun la plataforma, nunca una cadena vacia.
+    const binary = resolveFfmpegBinary();
+    expect(typeof binary === "string" && binary !== "").toBe(true);
+    const exe = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
+    expect(binary as string).toMatch(new RegExp(`${exe}$`));
     const dir = resolveFfmpegDir();
-    expect(dir === null || (typeof dir === "string" && dir !== "")).toBe(true);
+    expect(typeof dir === "string" && (dir as string) !== "").toBe(true);
   });
 });
 
 describe("assertFfmpegAvailable", () => {
-  it("lanza BINARIO_AUSENTE sin configuracion cuando falta la dependencia", async () => {
-    // ffmpeg-static no existe como modulo: la resolucion queda en null.
-    vi.stubEnv("FFMPEG_PATH", "");
-    const { resolveFfmpegBinary: real } = await import("../lib/ffmpeg");
-    if (real() !== null) return; // dependencia instalada: no aplicable
-    await expect(assertFfmpegAvailable()).rejects.toMatchObject({ code: "BINARIO_AUSENTE" });
-  });
-
   it("lanza BINARIO_AUSENTE cuando la ruta explicita no existe", async () => {
     vi.stubEnv("FFMPEG_PATH", path.join("C:", "no-existe", "ffmpeg.exe"));
     await expect(assertFfmpegAvailable()).rejects.toBeInstanceOf(ExtractionError);
@@ -55,5 +52,13 @@ describe("assertFfmpegAvailable", () => {
   it("devuelve la ruta cuando el archivo existe", async () => {
     vi.stubEnv("FFMPEG_PATH", process.execPath);
     await expect(assertFfmpegAvailable()).resolves.toBe(process.execPath);
+  });
+
+  it("resuelve el binario empaquetado sin FFMPEG_PATH cuando esta instalado", async () => {
+    vi.stubEnv("FFMPEG_PATH", "");
+    const binary = resolveFfmpegBinary();
+    if (typeof binary !== "string" || binary === "") return; // sin candidato: no aplicable
+    // El candidato habitual existe tras `npm install` (postinstall de ffmpeg-static).
+    await expect(assertFfmpegAvailable()).resolves.toBe(binary);
   });
 });

@@ -6,10 +6,12 @@ import { ExtractionError } from "./ytdlp";
 /**
  * Ruta al binario de ffmpeg para la conversion a MP3.
  *
- * Orden: `FFMPEG_PATH` (archivo o directorio) y, si esta instalado, el
- * paquete `ffmpeg-static`. Devuelve null cuando no hay ninguno disponible;
- * la ruta de descarga informa entonces un error claro en lugar de fallar de
- * forma opaca. Sin rutas absolutas codificadas.
+ * Orden: `FFMPEG_PATH` (archivo o directorio), el paquete `ffmpeg-static` via
+ * `require` (CJS) y, como respaldo determinista, su ubicacion habitual bajo
+ * `node_modules` resuelta desde `process.cwd()` (mismo patron que yt-dlp, sin
+ * depender de que `require` exista en el runtime compilado).
+ * Devuelve null cuando no hay ningun candidato; la disponibilidad real la
+ * comprueba `assertFfmpegAvailable`. Sin rutas absolutas codificadas.
  */
 export function resolveFfmpegBinary(): string | null {
   const override = process.env.FFMPEG_PATH?.trim();
@@ -26,9 +28,12 @@ export function resolveFfmpegBinary(): string | null {
       return ffmpegStatic;
     }
   } catch {
-    // No instalado: se informa como ausente al pedir audio.
+    // No resuelto por require: se intenta la ubicacion habitual.
   }
-  return null;
+  // Respaldo sin `require`: el binario que `ffmpeg-static` deja en su
+  // postinstall se llama `ffmpeg` (Linux/macOS) o `ffmpeg.exe` (Windows).
+  const exeName = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
+  return path.join(process.cwd(), "node_modules", "ffmpeg-static", exeName);
 }
 
 /** Directorio con el binario de ffmpeg (acepta archivo o directorio). */
